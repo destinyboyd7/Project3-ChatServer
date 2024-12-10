@@ -46,12 +46,14 @@ void *client_receive(void *ptr) {
   int received, i;
   char buffer[MAXBUFF], sbuffer[MAXBUFF];  //data buffer of 2K  
   char tmpbuf[MAXBUFF];  //data temp buffer of 1K  
-  char cmd[MAXBUFF], username[20];
+  char cmd[MAXBUFF];
+  char username[20];
   char *arguments[80];
-  struct node *current_users; 
+  
+  //struct node *current_users; 
 
   // Creating the guest user name
-  sprintf(username,"guest%d", client);
+  snprintf(username, sizeof(username), "guest%d", client);
   head = insertFirstU(head, client , username);
   head->room = strdup(DEFAULT_ROOM);
 
@@ -61,14 +63,15 @@ void *client_receive(void *ptr) {
   users[user_count].username = strdup(username);
   users[user_count].connected_to = 0;
   user_count++;
-  pthread_mutex_unlock(&mutex);
+
 
   // Add the GUEST to the DEFAULT ROOM (i.e. Lobby)
-  pthread_mutex_lock(&mutex);
   join_room(DEFAULT_ROOM, client);
   pthread_mutex_unlock(&mutex);
+  
 
   send(client, server_MOTD, strlen(server_MOTD) , 0 ); // Send Welcome Message of the Day.
+  send(client, buffer, strlen(buffer), 0);
 
   while (1) {   
     if ((received = read(client, buffer, MAXBUFF)) != 0) {
@@ -125,6 +128,7 @@ void *client_receive(void *ptr) {
         pthread_mutex_lock(&mutex);
         if (room_exists(arguments[1])){
           leave_room(DEFAULT_ROOM, client);
+          //leave_room(users[user_count - 1].current_room, client);
           join_room(arguments[1], client);
           sprintf(buffer, "You have joined room %s. \nchat>", arguments[1]);
         }

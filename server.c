@@ -36,6 +36,7 @@ void intial_default_room(){
   printf("Default room '%s' created successfully.\n", default_room->room_name);
 }
 
+/*
 struct node *insertFirstU(struct node *head, int socket, char *username) {
     struct node *new_node = malloc(sizeof(struct node));
     if (!new_node) {
@@ -49,6 +50,7 @@ struct node *insertFirstU(struct node *head, int socket, char *username) {
     new_node->next = head;
     return new_node;
 }
+*/
 
 int get_server_socket(char *hostname, char *port) {
     int opt = TRUE;   
@@ -60,7 +62,8 @@ int get_server_socket(char *hostname, char *port) {
     {   
       perror("socket failed");   
       exit(EXIT_FAILURE);   
-    }   
+    }  
+    
     //set master socket to allow multiple connections ,  
     //this is just a good habit, it will work without this  
     if( setsockopt(master_socket, SOL_SOCKET, SO_REUSEADDR, (char *)&opt,sizeof(opt)) < 0 )   
@@ -68,7 +71,6 @@ int get_server_socket(char *hostname, char *port) {
       perror("setsockopt");   
       exit(EXIT_FAILURE);   
     }   
-     
     //type of socket created  
     address.sin_family = AF_INET;   
     address.sin_addr.s_addr = INADDR_ANY;   
@@ -77,13 +79,14 @@ int get_server_socket(char *hostname, char *port) {
     //bind the socket to localhost port 8888  
     if (bind(master_socket, (struct sockaddr *)&address, sizeof(address))<0)   
     {   
-      perror("bind failed");   
+      perror("bind failed"); 
+      printf("Failed to bind to port %d. Ensure the port is not in use.\n", PORT);  
       exit(EXIT_FAILURE);   
     }   
-
    return master_socket;
 }
 
+/*
 int start_server(int serv_socket, int backlog) {
   int status = 0;
   if ((status = listen(serv_socket, backlog)) == -1) {
@@ -92,12 +95,20 @@ int start_server(int serv_socket, int backlog) {
   }
   return status;
 }
-
+*/
+int start_server(int serv_socket, int backlog) {
+  if (listen(serv_socket, backlog) == -1) {
+    printf("socket listen error\n");
+    printf("Failed to start listening on the server socket.\n");
+    return -1;
+  }
+  return 0;
+}
+/*
 int accept_client(int serv_sock) {
   int reply_sock_fd = -1;
   socklen_t sin_size = sizeof(struct sockaddr_storage);
   struct sockaddr_storage client_addr;
-   //char client_printable_addr[INET6_ADDRSTRLEN];
 
    // accept a connection request from a client
    // the returned file descriptor from accept will be used
@@ -106,8 +117,38 @@ int accept_client(int serv_sock) {
       printf("socket accept error\n");
       return -1;
    }
+   char client_printable_addr[INET6_ADDRSTRLEN];
+   inet_ntop(client_addr.ss_family, &(((struct sockaddr_in *)&client_addr)->sin_addr), client_addr, sizeof(client_addr));
+   printf("Accepted connection from '%s' \n", client_addr);
    return reply_sock_fd;
 }
+*/
+int accept_client(int serv_sock) {
+  int reply_sock_fd = -1;
+  socklen_t sin_size = sizeof(struct sockaddr_storage);
+  struct sockaddr_storage client_addr;
+  char client_printable_addr[INET6_ADDRSTRLEN];
+  // accept a connection request from a client
+  // the returned file descriptor from accept will be used
+  // to communicate with this client.
+  if ((reply_sock_fd = accept(serv_sock,(struct sockaddr *)&client_addr, &sin_size)) == -1) {
+    printf("socket accept error\n");
+    return -1;
+  }
+
+  // Determine if the client address is IPv4 or IPv6 and convert to printable form
+  if (client_addr.ss_family == AF_INET) {
+    struct sockaddr_in *addr_in = (struct sockaddr_in *)&client_addr;
+    inet_ntop(AF_INET, &addr_in->sin_addr, client_printable_addr, sizeof(client_printable_addr));
+  } else if (client_addr.ss_family == AF_INET6) {
+    struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)&client_addr;
+    inet_ntop(AF_INET6, &addr_in6->sin6_addr, client_printable_addr, sizeof(client_printable_addr));
+  } else {
+    strncpy(client_printable_addr, "Unknown", sizeof(client_printable_addr));
+  }  printf("Accepted connection from '%s' \n", client_printable_addr);
+  return reply_sock_fd;
+}
+
 
 RoomNode *find_room_by_name(const char *room_name){
   RoomNode *current = room_list_head;
@@ -115,7 +156,7 @@ RoomNode *find_room_by_name(const char *room_name){
     if (strcmp(current->room_name, room_name) == 0) {
       return current;
     }
-    current = current->next;;
+    current = current->next;
   }
   return NULL;
 }
@@ -291,8 +332,9 @@ int main(int argc, char **argv) {
 
   signal(SIGINT, sigintHandler);
 
+  
   char *hostname = "127.0.0.1";
- char *port = "8888";
+  char *port = "8888";
   //////////////////////////////////////////////////////
   // create the default room for all clients to join when 
   // initially connecting
@@ -308,7 +350,6 @@ int main(int argc, char **argv) {
   // step 3: get ready to accept connections
   if(start_server(chat_serv_sock_fd, BACKLOG) == -1) {
     printf("start server error\n");
-    close(chat_serv_sock_fd);
     exit(1);
   }
    
@@ -318,7 +359,7 @@ int main(int argc, char **argv) {
   while(1) {
     //Accept a connection, start a thread
     int new_client = accept_client(chat_serv_sock_fd);
-    if(new_client != -1) {
+    if(new_client == -1) {
       perror("Error accepting client connection");
       continue;
     }
